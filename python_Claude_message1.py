@@ -11,15 +11,19 @@ messages = [
     }
 ]
 
-message = client.messages.create(
+# Streaming: instead of waiting for the full answer, print each piece of text
+# the moment it arrives. end="" keeps it on one line, flush=True shows it now.
+with client.messages.stream(
     model="claude-opus-5-5",
     max_tokens=1000,
     messages=messages,
-)
+) as stream:
+    for text in stream.text_stream:
+        print(text, end="", flush=True)
 
-for block in message.content:
-    if block.type == "text":
-        print(block.text)
+    # After the stream ends, get the complete message (same object that
+    # messages.create() returns) so we can save it in the history.
+    message = stream.get_final_message()
 
 # Turn 2: add Claude's reply to the history, then ask a follow-up that only
 # makes sense if Claude remembers its first answer.
@@ -31,13 +35,16 @@ messages.append(
     }
 )
 
-follow_up = client.messages.create(
+print("\n\n--- Follow-up ---\n")
+with client.messages.stream(
     model="claude-opus-5-5",
     max_tokens=1000,
     messages=messages,
-)
+) as stream:
+    for text in stream.text_stream:
+        print(text, end="", flush=True)
 
-print("\n--- Follow-up ---\n")
-for block in follow_up.content:
-    if block.type == "text":
-        print(block.text)
+    follow_up = stream.get_final_message()
+
+print(f"\n\nTokens used - turn 1: {message.usage.output_tokens} out, "
+      f"turn 2: {follow_up.usage.input_tokens} in / {follow_up.usage.output_tokens} out")
